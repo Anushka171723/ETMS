@@ -71,32 +71,29 @@ router.post('/login', (req, res, next) => {
 
 // Logout Handle
 router.get('/logout', (req, res) => {
-    // Store the user's role before logout
-    const userRole = req.user ? req.user.role : null;
-    
-    // Clear any existing flash messages
-    req.flash();
-    
     // Set success message
     req.flash('success_msg', 'You have been successfully logged out');
     
-    // Perform the logout
-    req.logout((err) => {
+    // Clear the session first
+    req.session.destroy((err) => {
         if (err) {
-            console.error('Logout error:', err);
+            console.error('Session destruction error:', err);
             req.flash('error_msg', 'Error logging out');
             return res.redirect('/auth/login');
         }
         
-        // Then destroy the session
-        req.session.destroy((err) => {
+        // Then perform the logout
+        req.logout((err) => {
             if (err) {
-                console.error('Session destruction error:', err);
+                console.error('Logout error:', err);
                 req.flash('error_msg', 'Error logging out');
                 return res.redirect('/auth/login');
             }
             
-            // Redirect to login page immediately
+            // Clear the session cookie
+            res.clearCookie('sessionId');
+            
+            // Redirect to login page
             res.redirect('/auth/login');
         });
     });

@@ -40,9 +40,13 @@ app.use(session({
     saveUninitialized: false,
     cookie: { 
         secure: false, // Set to true if using HTTPS
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        httpOnly: true,
+        sameSite: 'lax'
     },
-    name: 'sessionId' // Custom session name
+    name: 'sessionId', // Custom session name
+    rolling: true,
+    unset: 'destroy'
 }));
 
 // Passport Middleware
