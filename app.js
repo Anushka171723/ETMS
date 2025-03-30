@@ -3,57 +3,57 @@ process.removeAllListeners('warning');
 
 const express = require('express');
 const mongoose = require('mongoose');
-const session = require('express-session');
 const passport = require('passport');
+const session = require('express-session');
 const flash = require('connect-flash');
 const path = require('path');
-
+const initializeUsers = require('./config/initUsers');
+const dropIndexes = require('./config/dropIndexes');
 const app = express();
 
-// Passport Config
-require('./config/passport')(passport);
+// View Engine Setup
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
-// Mongoose Settings
-mongoose.set('strictQuery', false); // This will suppress the warning
-
-// MongoDB Connection
-mongoose.connect('mongodb://localhost:27017/ets_db', {
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ETS', {
     useNewUrlParser: true,
     useUnifiedTopology: true
 })
-.then(() => console.log('MongoDB Connected'))
-.catch(err => console.log('MongoDB Connection Error:', err));
+.then(async () => {
+    console.log('Connected to MongoDB');
+    try {
+        // Drop existing indexes first
+        await dropIndexes();
+        // Then initialize users
+        await initializeUsers();
+    } catch (error) {
+        console.error('Error during initialization:', error);
+    }
+})
+.catch(err => console.error('MongoDB connection error:', err));
 
-// EJS Setup
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
+// Passport Config
+require('./config/passport')(passport);
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Session Setup
+// Express Session
 app.use(session({
-    secret: 'your-secret-key',
+    secret: 'secret',
     resave: false,
     saveUninitialized: false,
-    cookie: { 
-        secure: false, // Set to true if using HTTPS
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        httpOnly: true,
-        sameSite: 'lax'
-    },
-    name: 'sessionId', // Custom session name
-    rolling: true,
-    unset: 'destroy'
+    cookie: { secure: false } // Set to true if using HTTPS
 }));
 
 // Passport Middleware
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Flash Messages
+// Connect Flash
 app.use(flash());
 
 // Global Variables
@@ -66,11 +66,43 @@ app.use((req, res, next) => {
 });
 
 // Routes
-app.use('/', require('./routes/index'));
 app.use('/auth', require('./routes/auth'));
 app.use('/employee', require('./routes/employee'));
 app.use('/hr', require('./routes/hr'));
 app.use('/hod', require('./routes/hod'));
+
+// Root Route
+app.get('/', (req, res) => {
+    res.redirect('/auth/login');
+});
+
+// Dashboard Route
+app.get('/dashboard', (req, res) => {
+    if (!req.isAuthenticated()) {
+        req.flash('error_msg', 'Please log in to view this page');
+        return res.redirect('/auth/login');
+    }
+
+    // Redirect based on user role
+    switch (req.user.role) {
+        case 'employee':
+            res.redirect('/employee/dashboard');
+            break;
+        case 'hr':
+            res.redirect('/hr/dashboard');
+            break;
+        case 'hod':
+            res.redirect('/hod/dashboard');
+            break;
+        default:
+            res.redirect('/auth/login');
+    }
+});
+
+// Handle 404
+app.use((req, res) => {
+    res.status(404).render('404');
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

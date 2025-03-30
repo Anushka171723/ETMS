@@ -23,6 +23,10 @@ const transferRequestSchema = new mongoose.Schema({
         enum: ['pending', 'hr_approved', 'hr_rejected', 'hod_approved', 'hod_rejected'],
         default: 'pending'
     },
+    assignedHR: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
     hrComments: {
         type: String
     },

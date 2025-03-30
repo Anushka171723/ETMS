@@ -104,6 +104,7 @@
                                         <th>Employee</th>
                                         <th>Current Department</th>
                                         <th>Requested Department</th>
+                                        <th>Skills</th>
                                         <th>Submitted Date</th>
                                         <th>Status</th>
                                         <th>Action</th>
@@ -116,6 +117,13 @@
                                                 <td><%= request.employee.name %></td>
                                                 <td><%= request.currentDepartment %></td>
                                                 <td><%= request.requestedDepartment %></td>
+                                                <td>
+                                                    <% request.employee.skills.forEach(skill => { %>
+                                                        <span class="badge bg-info me-1">
+                                                            <%= skill.name %> (<%= skill.level %>)
+                                                        </span>
+                                                    <% }) %>
+                                                </td>
                                                 <td><%= new Date(request.createdAt).toLocaleDateString() %></td>
                                                 <td>
                                                     <span class="status-badge status-<%= request.status %>">
@@ -131,7 +139,7 @@
                                         <% }) %>
                                     <% } else { %>
                                         <tr>
-                                            <td colspan="6" class="text-center">No pending transfer requests</td>
+                                            <td colspan="7" class="text-center">No pending transfer requests</td>
                                         </tr>
                                     <% } %>
                                 </tbody>
@@ -148,6 +156,7 @@
                                         <th>Employee</th>
                                         <th>Current Department</th>
                                         <th>Requested Department</th>
+                                        <th>Skills</th>
                                         <th>Approved Date</th>
                                         <th>Status</th>
                                         <th>Action</th>
@@ -160,6 +169,13 @@
                                                 <td><%= request.employee.name %></td>
                                                 <td><%= request.currentDepartment %></td>
                                                 <td><%= request.requestedDepartment %></td>
+                                                <td>
+                                                    <% request.employee.skills.forEach(skill => { %>
+                                                        <span class="badge bg-info me-1">
+                                                            <%= skill.name %> (<%= skill.level %>)
+                                                        </span>
+                                                    <% }) %>
+                                                </td>
                                                 <td><%= new Date(request.updatedAt).toLocaleDateString() %></td>
                                                 <td>
                                                     <span class="status-badge status-<%= request.status %>">
@@ -175,7 +191,7 @@
                                         <% }) %>
                                     <% } else { %>
                                         <tr>
-                                            <td colspan="6" class="text-center">No approved transfer requests</td>
+                                            <td colspan="7" class="text-center">No approved transfer requests</td>
                                         </tr>
                                     <% } %>
                                 </tbody>
@@ -192,6 +208,7 @@
                                         <th>Employee</th>
                                         <th>Current Department</th>
                                         <th>Requested Department</th>
+                                        <th>Skills</th>
                                         <th>Rejected Date</th>
                                         <th>Status</th>
                                         <th>Action</th>
@@ -204,6 +221,13 @@
                                                 <td><%= request.employee.name %></td>
                                                 <td><%= request.currentDepartment %></td>
                                                 <td><%= request.requestedDepartment %></td>
+                                                <td>
+                                                    <% request.employee.skills.forEach(skill => { %>
+                                                        <span class="badge bg-info me-1">
+                                                            <%= skill.name %> (<%= skill.level %>)
+                                                        </span>
+                                                    <% }) %>
+                                                </td>
                                                 <td><%= new Date(request.updatedAt).toLocaleDateString() %></td>
                                                 <td>
                                                     <span class="status-badge status-<%= request.status %>">
@@ -219,7 +243,7 @@
                                         <% }) %>
                                     <% } else { %>
                                         <tr>
-                                            <td colspan="6" class="text-center">No rejected transfer requests</td>
+                                            <td colspan="7" class="text-center">No rejected transfer requests</td>
                                         </tr>
                                     <% } %>
                                 </tbody>
@@ -231,6 +255,85 @@
         </div>
     </div>
 
+    <!-- Transfer Request Details Modal -->
+    <div class="modal fade" id="requestDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Transfer Request Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Employee Information</h6>
+                            <p><strong>Name:</strong> <span id="employeeName"></span></p>
+                            <p><strong>Current Department:</strong> <span id="currentDepartment"></span></p>
+                            <p><strong>Requested Department:</strong> <span id="requestedDepartment"></span></p>
+                            <p><strong>Reason:</strong> <span id="reason"></span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Employee Skills</h6>
+                            <div id="skillsList" class="mb-3">
+                                <!-- Skills will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <div id="actionButtons">
+                        <!-- Action buttons will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    function showRequestDetails(request) {
+        document.getElementById('employeeName').textContent = request.employee.name;
+        document.getElementById('currentDepartment').textContent = request.currentDepartment;
+        document.getElementById('requestedDepartment').textContent = request.requestedDepartment;
+        document.getElementById('reason').textContent = request.reason;
+
+        // Display skills
+        const skillsList = document.getElementById('skillsList');
+        skillsList.innerHTML = '';
+        
+        if (request.employee.skills && request.employee.skills.length > 0) {
+            request.employee.skills.forEach(skill => {
+                const skillElement = document.createElement('div');
+                skillElement.className = 'mb-2';
+                skillElement.innerHTML = `
+                    <span class="badge bg-primary me-2">${skill.name}</span>
+                    <span class="badge bg-info me-2">${skill.category}</span>
+                    <span class="badge bg-secondary">${skill.level}</span>
+                `;
+                skillsList.appendChild(skillElement);
+            });
+        } else {
+            skillsList.innerHTML = '<p class="text-muted">No skills listed</p>';
+        }
+
+        // Show/hide action buttons based on status
+        const actionButtons = document.getElementById('actionButtons');
+        if (request.status === 'pending') {
+            actionButtons.innerHTML = `
+                <button type="button" class="btn btn-success" onclick="approveRequest('${request._id}')">
+                    <i class="fas fa-check me-2"></i>Approve
+                </button>
+                <button type="button" class="btn btn-danger" onclick="rejectRequest('${request._id}')">
+                    <i class="fas fa-times me-2"></i>Reject
+                </button>
+            `;
+        } else {
+            actionButtons.innerHTML = '';
+        }
+
+        new bootstrap.Modal(document.getElementById('requestDetailsModal')).show();
+    }
+    </script>
 </body>
 </html> 

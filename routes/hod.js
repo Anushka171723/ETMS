@@ -2,54 +2,38 @@ const express = require('express');
 const router = express.Router();
 const TransferRequest = require('../models/TransferRequest');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
+const { getStatusBadgeColor } = require('../utils/helpers');
+const { isAuthenticated, isHOD } = require('../middleware/auth');
 
-// Middleware to check if user is HOD
-const isHOD = (req, res, next) => {
-    if (req.isAuthenticated() && req.user.role === 'hod') {
-        return next();
-    }
-    req.flash('error_msg', 'Please log in as HOD to view this page');
-    res.redirect('/auth/login');
-};
-
-// HOD Dashboard
-router.get('/dashboard', isHOD, async (req, res) => {
+// Get HOD Dashboard
+router.get('/dashboard', isAuthenticated, isHOD, async (req, res) => {
     try {
-        // Get all transfer requests that are HR approved and pending HOD review
-        const transferRequests = await TransferRequest.find({
-            status: 'hr_approved'
-        }).populate('employee', 'name email department');
-
-        // Get all requests for the HOD's department
         const pendingRequests = await TransferRequest.find({
-            status: 'pending',
-            currentDepartment: req.user.department
-        }).populate('employee', 'name email department');
-        
-        const approvedRequests = await TransferRequest.find({
-            status: 'hod_approved',
-            currentDepartment: req.user.department
-        }).populate('employee', 'name email department');
-        
-        const rejectedRequests = await TransferRequest.find({
-            status: 'hod_rejected',
-            currentDepartment: req.user.department
-        }).populate('employee', 'name email department');
+            status: { $in: ['pending', 'hr_approved'] }
+        }).populate('employee', 'name email department skills')
+        .populate('assignedHR', 'name email')
+        .sort({ updatedAt: -1 });
+
+        const processedRequests = await TransferRequest.find({
+            status: { $in: ['hod_approved', 'hod_rejected'] }
+        }).populate('employee', 'name email department')
+        .populate('assignedHR', 'name email')
+        .sort({ updatedAt: -1 });
 
         res.render('hod/dashboard', {
-            transferRequests,
+            user: req.user,
             pendingRequests,
-            approvedRequests,
-            rejectedRequests,
+            processedRequests,
+            getStatusBadgeColor,
             messages: {
                 success: req.flash('success_msg'),
                 error: req.flash('error_msg')
             }
         });
     } catch (error) {
-        console.error('Error fetching transfer requests:', error);
-        req.flash('error_msg', 'Error loading dashboard');
-        res.redirect('/auth/login');
+        console.error('Error:', error);
+        res.status(500).send('Server Error');
     }
 });
 
@@ -78,41 +62,66 @@ router.get('/transfer-request/:id', isHOD, async (req, res) => {
     }
 });
 
-// Handle HOD Action (Approve/Reject)
-router.post('/transfer-request/:id/action', isHOD, async (req, res) => {
+// Review Transfer Request
+router.post('/transfer-request/:id/review', isAuthenticated, isHOD, async (req, res) => {
     try {
-        const { action, hodComments } = req.body;
-        const request = await TransferRequest.findById(req.params.id)
-            .populate('employee', 'name email department');
+        const { status, comments } = req.body;
+        const request = await TransferRequest.findOne({
+            _id: req.params.id
+        });
 
         if (!request) {
-            req.flash('error_msg', 'Transfer request not found');
-            return res.redirect('/hod/dashboard');
+            return res.status(404).json({ error: 'Request not found' });
         }
 
+        // Check if request is in correct status for HOD review
         if (request.status !== 'hr_approved') {
-            req.flash('error_msg', 'This request is not ready for HOD review');
-            return res.redirect('/hod/dashboard');
+            return res.status(400).json({ 
+                error: `Cannot review request. Current status: ${request.status}. Request must be approved by HR first.` 
+            });
         }
 
-        // Update request status and comments
-        request.status = action === 'approve' ? 'hod_approved' : 'hod_rejected';
-        request.hodComments = hodComments;
-        await request.save();
+        request.status = status;
+        request.hodComments = comments;
 
         // If approved, update employee's department
-        if (action === 'approve') {
-            const employee = await User.findById(request.employee._id);
-            employee.department = request.requestedDepartment;
-            await employee.save();
+        if (status === 'hod_approved') {
+            const employee = await User.findById(request.employee);
+            if (employee) {
+                employee.department = request.requestedDepartment;
+                await employee.save();
+            }
         }
 
-        req.flash('success_msg', `Transfer request ${action === 'approve' ? 'approved' : 'rejected'} successfully`);
-        res.redirect('/hod/dashboard');
+        await request.save();
+
+        // Create notification for employee
+        const notification = new Notification({
+            recipient: request.employee,
+            message: `Your transfer request has been ${status === 'hod_approved' ? 'approved' : 'rejected'} by HOD`,
+            type: 'transfer_request',
+            link: '/employee/dashboard'
+        });
+        await notification.save();
+
+        // Create notification for HR
+        const hrNotification = new Notification({
+            recipient: request.assignedHR,
+            message: `Transfer request for ${request.employee.name} has been ${status === 'hod_approved' ? 'approved' : 'rejected'} by HOD`,
+            type: 'transfer_request',
+            link: '/hr/dashboard'
+        });
+        await hrNotification.save();
+
+        req.flash('success_msg', `Request ${status === 'hod_approved' ? 'approved' : 'rejected'} successfully`);
+        res.json({ 
+            success: true, 
+            message: `Request ${status === 'hod_approved' ? 'approved' : 'rejected'} successfully` 
+        });
     } catch (error) {
-        console.error('Error processing HOD action:', error);
-        req.flash('error_msg', 'Error processing your action');
-        res.redirect('/hod/dashboard');
+        console.error('Error:', error);
+        req.flash('error_msg', 'Error processing request');
+        res.status(500).json({ error: 'Server Error' });
     }
 });
 
