@@ -1,13 +1,21 @@
-const getStatusBadgeColor = (status) => {
-    const colors = {
-        'pending': 'warning',
-        'hr_approved': 'success',
-        'hr_rejected': 'danger',
-        'hod_approved': 'success',
-        'hod_rejected': 'danger'
-    };
-    return colors[status] || 'secondary';
-};
+function getStatusBadgeColor(status) {
+    switch (status) {
+        case 'pending':
+            return 'warning';
+        case 'hr_approved':
+            return 'success';
+        case 'hr_rejected':
+            return 'danger';
+        case 'hod_approved':
+            return 'success';
+        case 'hod_rejected':
+            return 'danger';
+        case 'completed':
+            return 'info';
+        default:
+            return 'secondary';
+    }
+}
 
 module.exports = {
     getStatusBadgeColor

@@ -9,10 +9,27 @@ const { isAuthenticated, isHR } = require('../middleware/auth');
 // Get HR Dashboard
 router.get('/dashboard', isAuthenticated, isHR, async (req, res) => {
     try {
+        console.log('HR User:', {
+            id: req.user._id,
+            name: req.user.name,
+            department: req.user.department
+        });
+
+        // Get pending requests for HR's department
         const pendingRequests = await TransferRequest.find({
             assignedHR: req.user._id,
             status: 'pending'
         }).populate('employee', 'name email department skills');
+
+        console.log('Pending Requests:', {
+            count: pendingRequests.length,
+            requests: pendingRequests.map(req => ({
+                id: req._id,
+                employee: req.employee.name,
+                status: req.status,
+                department: req.employee.department
+            }))
+        });
 
         const approvedRequests = await TransferRequest.find({
             assignedHR: req.user._id,
@@ -20,11 +37,31 @@ router.get('/dashboard', isAuthenticated, isHR, async (req, res) => {
         }).populate('employee', 'name email department skills')
         .sort({ updatedAt: -1 });
 
+        console.log('Approved Requests:', {
+            count: approvedRequests.length,
+            requests: approvedRequests.map(req => ({
+                id: req._id,
+                employee: req.employee.name,
+                status: req.status,
+                department: req.employee.department
+            }))
+        });
+
         const rejectedRequests = await TransferRequest.find({
             assignedHR: req.user._id,
             status: 'hr_rejected'
         }).populate('employee', 'name email department skills')
         .sort({ updatedAt: -1 });
+
+        console.log('Rejected Requests:', {
+            count: rejectedRequests.length,
+            requests: rejectedRequests.map(req => ({
+                id: req._id,
+                employee: req.employee.name,
+                status: req.status,
+                department: req.employee.department
+            }))
+        });
 
         res.render('hr/dashboard', {
             user: req.user,
@@ -38,7 +75,7 @@ router.get('/dashboard', isAuthenticated, isHR, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Error in HR dashboard:', error);
         res.status(500).send('Server Error');
     }
 });
@@ -83,7 +120,7 @@ router.post('/transfer-request/:id/review', isAuthenticated, isHR, async (req, r
             _id: req.params.id,
             assignedHR: req.user._id,
             status: 'pending'
-        });
+        }).populate('employee', 'name email department');
 
         if (!request) {
             return res.status(404).json({ error: 'Request not found' });
@@ -94,25 +131,25 @@ router.post('/transfer-request/:id/review', isAuthenticated, isHR, async (req, r
         await request.save();
 
         // Create notification for employee
-        const notification = new Notification({
-            recipient: request.employee,
-            message: `Your transfer request has been ${status === 'hr_approved' ? 'approved' : 'rejected'} by HR`,
+        await Notification.create({
+            recipient: request.employee._id,
+            title: 'Transfer Request Reviewed',
+            message: `Your transfer request has been ${status === 'hr_approved' ? 'approved' : 'rejected'} by HR.`,
             type: 'transfer_request',
             link: '/employee/dashboard'
         });
-        await notification.save();
 
         // If approved, create notification for HOD
         if (status === 'hr_approved') {
             const hodUser = await User.findOne({ role: 'hod' });
             if (hodUser) {
-                const hodNotification = new Notification({
+                await Notification.create({
                     recipient: hodUser._id,
-                    message: `New transfer request from ${request.employee.name} needs HOD approval`,
+                    title: 'New Transfer Request',
+                    message: `A transfer request from ${request.employee.name} has been approved by HR and needs your review.`,
                     type: 'transfer_request',
                     link: '/hod/dashboard'
                 });
-                await hodNotification.save();
             }
         }
 

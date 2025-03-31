@@ -52,69 +52,79 @@ router.get('/transfer-request', isAuthenticated, isEmployee, (req, res) => {
 // Create Transfer Request
 router.post('/transfer-request', isAuthenticated, isEmployee, async (req, res) => {
     try {
-        const { requestedDepartment, reason } = req.body;
-        
-        // Validate required fields
-        if (!requestedDepartment || !reason) {
-            return res.status(400).json({ 
-                error: 'Department and reason are required' 
-            });
-        }
-
-        // Check if employee already has an active request
-        const existingRequest = await TransferRequest.findOne({
-            employee: req.user._id,
-            status: { $nin: ['hr_rejected', 'hod_rejected'] }
-        });
-
-        if (existingRequest) {
-            return res.status(400).json({ 
-                error: 'You already have an active transfer request' 
-            });
-        }
-
-        // Find HR for the current department
-        const hrUser = await User.findOne({ 
-            role: 'hr',
-            department: req.user.department 
-        });
-
-        if (!hrUser) {
-            return res.status(400).json({ 
-                error: 'No HR assigned to your department' 
-            });
-        }
-
-        // Create new transfer request
-        const transferRequest = new TransferRequest({
+        const { requestedDepartment, requestedRole, reason } = req.body;
+        console.log('Creating transfer request:', {
             employee: req.user._id,
             currentDepartment: req.user.department,
             requestedDepartment,
-            reason,
-            status: 'pending',
-            assignedHR: hrUser._id
+            requestedRole,
+            reason
         });
 
-        await transferRequest.save();
+        // Validate required fields
+        if (!requestedDepartment || !reason) {
+            return res.status(400).json({ error: 'Please provide all required fields' });
+        }
+
+        // Check for existing active transfer request
+        const existingRequest = await TransferRequest.findOne({
+            employee: req.user._id,
+            status: { $in: ['pending', 'hr_approved'] }
+        });
+
+        if (existingRequest) {
+            return res.status(400).json({ error: 'You already have an active transfer request' });
+        }
+
+        // Find HR for the employee's current department
+        const hr = await User.findOne({
+            role: 'hr',
+            department: req.user.department
+        });
+
+        if (!hr) {
+            return res.status(400).json({ error: 'No HR assigned to your department' });
+        }
+
+        // Create new transfer request
+        const transferRequest = await TransferRequest.create({
+            employee: req.user._id,
+            currentDepartment: req.user.department,
+            requestedDepartment,
+            requestedRole: requestedRole || req.user.role,
+            reason,
+            assignedHR: hr._id,
+            status: 'pending'
+        });
 
         // Create notification for HR
-        const notification = new Notification({
-            recipient: hrUser._id,
-            message: `New transfer request from ${req.user.name}`,
+        await Notification.create({
+            recipient: hr._id,
+            title: 'New Transfer Request',
+            message: `New transfer request from ${req.user.name} in ${req.user.department} department`,
             type: 'transfer_request',
             link: '/hr/dashboard'
         });
-        await notification.save();
 
-        req.flash('success', 'Transfer request submitted successfully');
-        res.json({ 
-            success: true, 
-            message: 'Transfer request submitted successfully' 
+        // Create notification for employee
+        await Notification.create({
+            recipient: req.user._id,
+            title: 'Transfer Request Submitted',
+            message: 'Your transfer request has been submitted and is pending HR review',
+            type: 'transfer_request',
+            link: '/employee/dashboard'
+        });
+
+        res.status(201).json({
+            success: true,
+            message: 'Transfer request created successfully',
+            transferRequest
         });
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Error creating transfer request:', error);
         res.status(500).json({ 
-            error: 'Error submitting transfer request' 
+            error: 'Error creating transfer request',
+            details: error.message
         });
     }
 });
@@ -291,6 +301,55 @@ router.post('/notifications/:id/read', isAuthenticated, isEmployee, async (req, 
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Error marking notification as read' });
+    }
+});
+
+// Delete Transfer Request
+router.delete('/transfer-request/:id', isAuthenticated, isEmployee, async (req, res) => {
+    try {
+        console.log('Attempting to delete transfer request:', req.params.id);
+        
+        const request = await TransferRequest.findOne({
+            _id: req.params.id,
+            employee: req.user._id
+        });
+
+        if (!request) {
+            console.log('Transfer request not found:', req.params.id);
+            return res.status(404).json({ error: 'Transfer request not found' });
+        }
+
+        // Check if request can be deleted (only pending requests)
+        if (request.status !== 'pending') {
+            console.log('Cannot delete request with status:', request.status);
+            return res.status(400).json({ 
+                error: 'Cannot delete this request. Only pending requests can be deleted.' 
+            });
+        }
+
+        // Delete the request
+        await TransferRequest.findByIdAndDelete(request._id);
+        console.log('Transfer request deleted successfully');
+
+        // Create notification for HR
+        await Notification.create({
+            recipient: request.assignedHR,
+            title: 'Transfer Request Deleted',
+            message: `Transfer request from ${req.user.name} has been deleted.`,
+            type: 'transfer_request',
+            link: '/hr/dashboard'
+        });
+
+        res.json({ 
+            success: true, 
+            message: 'Transfer request deleted successfully' 
+        });
+    } catch (error) {
+        console.error('Error deleting transfer request:', error);
+        res.status(500).json({ 
+            error: 'Error deleting transfer request',
+            details: error.message
+        });
     }
 });
 

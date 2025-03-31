@@ -14,13 +14,18 @@ const transferRequestSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    requestedRole: {
+        type: String,
+        required: true,
+        enum: ['employee', 'hr', 'hod']
+    },
     reason: {
         type: String,
         required: true
     },
     status: {
         type: String,
-        enum: ['pending', 'hr_approved', 'hr_rejected', 'hod_approved', 'hod_rejected'],
+        enum: ['pending', 'hr_approved', 'hr_rejected', 'hod_approved', 'hod_rejected', 'completed'],
         default: 'pending'
     },
     assignedHR: {

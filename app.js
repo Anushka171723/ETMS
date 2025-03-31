@@ -46,7 +46,11 @@ app.use(session({
     secret: 'secret',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false } // Set to true if using HTTPS
+    cookie: { 
+        secure: false, // Set to true if using HTTPS
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    },
+    name: 'sessionId' // Custom session name
 }));
 
 // Passport Middleware
@@ -73,7 +77,12 @@ app.use('/hod', require('./routes/hod'));
 
 // Root Route
 app.get('/', (req, res) => {
-    res.redirect('/auth/login');
+    res.render('index', {
+        messages: {
+            success: req.flash('success_msg'),
+            error: req.flash('error_msg')
+        }
+    });
 });
 
 // Dashboard Route

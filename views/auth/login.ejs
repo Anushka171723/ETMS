@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Employee Transfer System</title>
+    <title>Login - Transfer System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body {
             background-color: #f8f9fa;
@@ -18,30 +18,63 @@
             border-radius: 10px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
-        .credentials-card {
-            margin-top: 20px;
-            background: #f8f9fa;
-            padding: 15px;
+        .role-selector {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .role-btn {
+            margin: 5px;
+            padding: 10px 20px;
+            border: none;
             border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .role-btn.active {
+            background-color: #007bff;
+            color: white;
+        }
+        .role-btn:not(.active) {
+            background-color: #e9ecef;
+            color: #495057;
+        }
+        .role-btn:hover {
+            opacity: 0.9;
+        }
+        .alert {
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="login-container">
-            <h2 class="text-center mb-4">Login</h2>
+            <h2 class="text-center mb-4">Transfer System Login</h2>
             
             <% if (messages.error) { %>
-                <div class="alert alert-danger"><%= messages.error %></div>
-            <% } %>
-            
-            <% if (messages.success) { %>
-                <div class="alert alert-success"><%= messages.success %></div>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <%= messages.error %>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
             <% } %>
 
+            <% if (messages.success) { %>
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <%= messages.success %>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <% } %>
+
+            <div class="role-selector">
+                <button class="role-btn active" data-role="hr">HR</button>
+                <button class="role-btn" data-role="hod">HOD</button>
+                <button class="role-btn" data-role="employee">Employee</button>
+            </div>
+
             <form action="/auth/login" method="POST">
+                <input type="hidden" name="role" id="selectedRole" value="hr">
                 <div class="mb-3">
-                    <label for="email" class="form-label">Email address</label>
+                    <label for="email" class="form-label">Email</label>
                     <input type="email" class="form-control" id="email" name="email" required>
                 </div>
                 <div class="mb-3">
@@ -50,42 +83,35 @@
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Login</button>
             </form>
-
-            <div class="credentials-card">
-                <h5>Login Credentials:</h5>
-                <p><strong>HR Managers:</strong><br>
-                IT Department: it.hr@company.com / it123<br>
-                Finance Department: finance.hr@company.com / finance123<br>
-                Marketing Department: marketing.hr@company.com / marketing123<br>
-                Operations Department: operations.hr@company.com / operations123<br>
-                HR Department: hr@company.com / hr123</p>
-                
-                <p><strong>Employees:</strong><br>
-                <strong>IT Department:</strong><br>
-                - John Smith: john.smith@company.com / john123<br>
-                - Sarah Johnson: sarah.johnson@company.com / sarah123<br>
-                
-                <strong>Finance Department:</strong><br>
-                - Michael Brown: michael.brown@company.com / michael123<br>
-                - Emily Davis: emily.davis@company.com / emily123<br>
-                
-                <strong>Marketing Department:</strong><br>
-                - David Wilson: david.wilson@company.com / david123<br>
-                - Lisa Anderson: lisa.anderson@company.com / lisa123<br>
-                
-                <strong>Operations Department:</strong><br>
-                - Robert Taylor: robert.taylor@company.com / robert123<br>
-                - Jennifer White: jennifer.white@company.com / jennifer123<br>
-                
-                <strong>HR Department:</strong><br>
-                - Thomas Lee: thomas.lee@company.com / thomas123<br>
-                - Maria Garcia: maria.garcia@company.com / maria123</p>
-                
-                <p><strong>HOD Admin:</strong><br>Email: hod@company.com<br>Password: hod123</p>
-            </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Handle role button clicks
+        document.querySelectorAll('.role-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                // Remove active class from all buttons
+                document.querySelectorAll('.role-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                // Add active class to clicked button
+                this.classList.add('active');
+                // Update hidden input
+                document.getElementById('selectedRole').value = this.dataset.role;
+            });
+        });
+
+        // Auto-dismiss alerts after 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                setTimeout(() => {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }, 5000);
+            });
+        });
+    </script>
 </body>
 </html> 
