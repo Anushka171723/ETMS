@@ -132,23 +132,26 @@ router.post('/transfer-request/:id/review', isAuthenticated, isHOD, async (req, 
         // Update request status
         request.status = status;
         request.hodComments = comments;
+        request.hodDecisionDate = new Date();
         await request.save();
 
-        // Create notifications
-        await Notification.create([
-            {
-                recipient: request.employee._id,
-                title: 'Transfer Request Reviewed',
-                message: `Your transfer request has been ${status === 'hod_approved' ? 'approved' : 'rejected'} by HOD.`,
-                type: 'transfer_reviewed'
-            },
-            {
-                recipient: request.assignedHR._id,
-                title: 'Transfer Request Reviewed',
-                message: `The transfer request for ${request.employee.name} has been ${status === 'hod_approved' ? 'approved' : 'rejected'} by HOD.`,
-                type: 'transfer_reviewed'
-            }
-        ]);
+        // Create notification for employee
+        await Notification.create({
+            recipient: request.employee._id,
+            title: 'Transfer Request Reviewed by HOD',
+            message: `Your transfer request to ${request.requestedDepartment} has been ${status === 'hod_approved' ? 'approved' : 'rejected'} by the HOD.`,
+            type: 'transfer_request',
+            link: '/employee/dashboard'
+        });
+
+        // Create notification for HR
+        await Notification.create({
+            recipient: request.assignedHR._id,
+            title: 'Transfer Request Reviewed by HOD',
+            message: `The transfer request for ${request.employee.name} has been ${status === 'hod_approved' ? 'approved' : 'rejected'} by HOD.`,
+            type: 'transfer_request',
+            link: '/hr/dashboard'
+        });
 
         // If approved, update employee's department and role
         if (status === 'hod_approved') {
@@ -189,7 +192,10 @@ router.post('/transfer-request/:id/finalize', isAuthenticated, isHOD, async (req
             comments
         });
 
-        const request = await TransferRequest.findById(req.params.id);
+        const request = await TransferRequest.findById(req.params.id)
+            .populate('employee')
+            .populate('assignedHR');
+
         if (!request) {
             return res.status(404).json({ error: 'Transfer request not found' });
         }
@@ -207,7 +213,7 @@ router.post('/transfer-request/:id/finalize', isAuthenticated, isHOD, async (req
 
         // Update employee's department and role if approved
         if (decision === 'approve') {
-            const employee = await User.findById(request.employee);
+            const employee = await User.findById(request.employee._id);
             if (employee) {
                 employee.department = request.requestedDepartment;
                 employee.role = request.requestedRole || employee.role;
@@ -217,18 +223,18 @@ router.post('/transfer-request/:id/finalize', isAuthenticated, isHOD, async (req
 
         // Create notification for employee
         await Notification.create({
-            recipient: request.employee,
+            recipient: request.employee._id,
             title: 'Transfer Request Finalized',
-            message: `Your transfer request has been ${decision === 'approve' ? 'approved' : 'rejected'} by the HOD.`,
+            message: `Your transfer request to ${request.requestedDepartment} has been ${decision === 'approve' ? 'approved' : 'rejected'} by the HOD.`,
             type: 'transfer_request',
             link: '/employee/dashboard'
         });
 
         // Create notification for HR
         await Notification.create({
-            recipient: request.assignedHR,
+            recipient: request.assignedHR._id,
             title: 'Transfer Request Finalized',
-            message: `Transfer request has been ${decision === 'approve' ? 'approved' : 'rejected'} by the HOD.`,
+            message: `Transfer request for ${request.employee.name} has been ${decision === 'approve' ? 'approved' : 'rejected'} by the HOD.`,
             type: 'transfer_request',
             link: '/hr/dashboard'
         });
