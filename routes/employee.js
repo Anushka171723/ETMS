@@ -9,33 +9,37 @@ const { isAuthenticated, isEmployee } = require('../middleware/auth');
 // Employee Dashboard
 router.get('/dashboard', isAuthenticated, isEmployee, async (req, res) => {
     try {
-        const user = await User.findById(req.user._id);
-        const activeRequest = await TransferRequest.findOne({
-            employee: req.user._id,
-            status: { $nin: ['hr_rejected', 'hod_rejected'] }
-        });
-        const transferHistory = await TransferRequest.find({
-            employee: req.user._id,
-            status: { $in: ['hr_rejected', 'hod_rejected'] }
-        }).sort({ createdAt: -1 });
+        // Get employee's transfer requests
+        const transferRequests = await TransferRequest.find({ employee: req.user._id })
+            .populate('assignedHR', 'name email')
+            .sort({ createdAt: -1 });
 
-        // Get unread notifications
-        const unreadNotifications = await Notification.find({
-            recipient: req.user._id,
-            read: false
-        }).sort({ createdAt: -1 });
+        // Get employee's notifications
+        const notifications = await Notification.find({ recipient: req.user._id })
+            .sort({ createdAt: -1 });
+
+        // Get unread notifications count
+        const unreadNotifications = await Notification.find({ 
+            recipient: req.user._id, 
+            isRead: false 
+        });
+
+        // Mark all notifications as read
+        await Notification.updateMany(
+            { recipient: req.user._id, isRead: false },
+            { isRead: true }
+        );
 
         res.render('employee/dashboard', {
-            user,
-            activeRequest,
-            transferHistory,
+            transferRequests,
+            notifications,
             unreadNotifications,
-            getStatusBadgeColor,
             messages: req.flash()
         });
     } catch (error) {
-        console.error('Error:', error);
-        res.status(500).send('Server Error');
+        console.error('Error in employee dashboard:', error);
+        req.flash('error', 'Error loading dashboard');
+        res.redirect('/auth/login');
     }
 });
 

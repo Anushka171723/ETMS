@@ -40,20 +40,20 @@ router.get('/dashboard', isAuthenticated, isHOD, async (req, res) => {
           .populate('assignedHR', 'name email')
           .sort({ updatedAt: -1 });
 
-        console.log('Found processed requests:', {
-            count: processedRequests.length,
-            requests: processedRequests.map(req => ({
-                id: req._id,
-                employee: req.employee.name,
-                status: req.status,
-                requestedDepartment: req.requestedDepartment,
-                currentDepartment: req.currentDepartment
-            }))
-        });
+        // Get notifications and mark them as read
+        const notifications = await Notification.find({ recipient: req.user._id })
+            .sort({ createdAt: -1 });
+
+        // Mark all notifications as read
+        await Notification.updateMany(
+            { recipient: req.user._id, isRead: false },
+            { isRead: true }
+        );
 
         res.render('hod/dashboard', {
             pendingRequests,
             processedRequests,
+            notifications,
             getStatusBadgeColor,
             messages: req.flash()
         });

@@ -9,74 +9,41 @@ const { isAuthenticated, isHR } = require('../middleware/auth');
 // Get HR Dashboard
 router.get('/dashboard', isAuthenticated, isHR, async (req, res) => {
     try {
-        console.log('HR User:', {
-            id: req.user._id,
-            name: req.user.name,
-            department: req.user.department
-        });
-
-        // Get pending requests for HR's department
+        // Get pending transfer requests
         const pendingRequests = await TransferRequest.find({
-            assignedHR: req.user._id,
-            status: 'pending'
-        }).populate('employee', 'name email department skills');
+            status: 'pending',
+            assignedHR: req.user._id
+        }).populate('employee', 'name email department')
+          .sort({ createdAt: -1 });
 
-        console.log('Pending Requests:', {
-            count: pendingRequests.length,
-            requests: pendingRequests.map(req => ({
-                id: req._id,
-                employee: req.employee.name,
-                status: req.status,
-                department: req.employee.department
-            }))
-        });
+        // Get processed requests
+        const processedRequests = await TransferRequest.find({
+            status: { $in: ['hr_approved', 'hr_rejected', 'hod_approved', 'hod_rejected'] },
+            assignedHR: req.user._id
+        }).populate('employee', 'name email department')
+          .sort({ updatedAt: -1 });
 
-        const approvedRequests = await TransferRequest.find({
-            assignedHR: req.user._id,
-            status: 'hr_approved'
-        }).populate('employee', 'name email department skills')
-        .sort({ updatedAt: -1 });
+        // Get notifications and mark them as read
+        const notifications = await Notification.find({ recipient: req.user._id })
+            .sort({ createdAt: -1 });
 
-        console.log('Approved Requests:', {
-            count: approvedRequests.length,
-            requests: approvedRequests.map(req => ({
-                id: req._id,
-                employee: req.employee.name,
-                status: req.status,
-                department: req.employee.department
-            }))
-        });
-
-        const rejectedRequests = await TransferRequest.find({
-            assignedHR: req.user._id,
-            status: 'hr_rejected'
-        }).populate('employee', 'name email department skills')
-        .sort({ updatedAt: -1 });
-
-        console.log('Rejected Requests:', {
-            count: rejectedRequests.length,
-            requests: rejectedRequests.map(req => ({
-                id: req._id,
-                employee: req.employee.name,
-                status: req.status,
-                department: req.employee.department
-            }))
-        });
+        // Mark all notifications as read
+        await Notification.updateMany(
+            { recipient: req.user._id, isRead: false },
+            { isRead: true }
+        );
 
         res.render('hr/dashboard', {
-            user: req.user,
             pendingRequests,
-            approvedRequests,
-            rejectedRequests,
+            processedRequests,
+            notifications,
             getStatusBadgeColor,
-            messages: {
-                success: req.flash('success_msg'),
-                error: req.flash('error_msg')
-            }
+            messages: req.flash()
         });
     } catch (error) {
         console.error('Error in HR dashboard:', error);
-        res.status(500).send('Server Error');
+        req.flash('error', 'Error loading dashboard');
+        res.redirect('/auth/login');
     }
 });
 

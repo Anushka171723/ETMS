@@ -6,20 +6,24 @@ const notificationSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    title: {
+        type: String,
+        required: true
+    },
     message: {
         type: String,
         required: true
     },
     type: {
         type: String,
-        enum: ['transfer_request', 'hr_approval', 'hr_rejection', 'hod_approval', 'hod_rejection'],
-        required: true
+        enum: ['transfer_request', 'leave_request', 'general'],
+        default: 'general'
     },
     link: {
         type: String,
         required: true
     },
-    read: {
+    isRead: {
         type: Boolean,
         default: false
     },
